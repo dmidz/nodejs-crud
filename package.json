@@ -18,7 +18,7 @@
     "release:patch": "npm version patch -m \"release version %s\"",
     "release:minor": "npm version minor -m \"release version %s\"",
     "release:major": "npm version major -m \"release version %s\"",
-    "_postversion": "git push origin master && git push origin master --tags"
+    "postversion": "git push origin master && git push origin master --tags"
   },
   "dependencies": {
     "bluebird": "^3.7.2",

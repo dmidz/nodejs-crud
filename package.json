@@ -15,9 +15,9 @@
   "scripts": {
     "test": "lab test/unit.js -v -m 15000",
     "preversion": "npm test",
-    "release:patch": "npm version patch -m \"version %s\"",
-    "release:minor": "npm run release:pre && npm version minor --force -m \"version %s\"",
-    "release:major": "npm run release:pre && npm version major --force -m \"version %s\"",
+    "release:patch": "npm version patch -m \"release version %s\"",
+    "release:minor": "npm version minor -m \"release version %s\"",
+    "release:major": "npm version major -m \"release version %s\"",
     "_postversion": "git push origin master && git push origin master --tags"
   },
   "dependencies": {

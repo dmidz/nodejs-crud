@@ -1,0 +1,43 @@
+{
+  "name": "@dmidz/crud",
+  "version": "2.0.0",
+  "author": "David MARTIN <david@dmidz.com>",
+  "description": "Wrapper of Sequelize ORM with CRUD operations & authorization level access.",
+  "main": "src/index.js",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dmidz/nodejs-crud.git"
+  },
+  "scripts": {
+    "test": "lab test/unit.js -v -m 15000",
+    "release:pre": "npm test",
+    "release:patch": "npm run release:pre && npm version patch --force -m \"version %s\"",
+    "release:minor": "npm run release:pre && npm version minor --force -m \"version %s\"",
+    "release:major": "npm run release:pre && npm version major --force -m \"version %s\""
+  },
+  "dependencies": {
+    "bluebird": "^3.7.2",
+    "lodash": "^4.17.20",
+    "sequelize": "^4.44.4"
+  },
+  "peerDependencies": {},
+  "devDependencies": {
+    "@hapi/code": "^8.0.2",
+    "@hapi/lab": "^23.0.0",
+    "bcrypt": "^5.0.0",
+    "sqlite3": "^5.0.0"
+  },
+  "engines": {
+    "node": ">= 12.16.1",
+    "npm": ">= 6.13.4"
+  },
+  "keywords": [
+    "crud",
+    "authorization",
+    "sequelize"
+  ]
+}

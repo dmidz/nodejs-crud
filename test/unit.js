@@ -238,7 +238,7 @@ lab.experiment('//__ CRUD operations', function(){
 			console.log('### res :', res.get() );
 			expect( res ).to.be.an.object();
 			expect( res.title ).to.equal( clone_props.title );
-			expect( res.content ).to.equal( 'Content cloned taskZ.' );
+			expect( res.content ).to.equal( 'Content cloned task.' );
 		})
 		;
 	});

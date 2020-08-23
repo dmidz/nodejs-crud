@@ -14,91 +14,70 @@ lab.experiment('//__ CRUD operations', function(){
 	const creds = {};
 
 	const mod = new DbCrud({
-		debug: true //require.main === module
-		, dir_models : Path.join( __dirname, 'models' )
-		, db_sequelize : {
-			database : 'db_test'
-			, operatorsAliases:false
-			, dialect: 'sqlite'//'mysql'|'mariadb'|'sqlite'|'postgres'|'mssql',
-			, user: 'demo'
-			, password: 'demo'
-			, host: 'localhost'
-			, pool: { max: 5, min: 0, idle: 10000 }
-			, storage : ':memory:'// Path.join( __dirname, 'data/db_test.sqlite' )
+		debug: true,
+		dir_models : Path.join( __dirname, 'models' ),
+		db_sequelize : {
+			database : 'db_test',
+			operatorsAliases:false,
+			dialect: 'sqlite',//'mysql'|'mariadb'|'sqlite'|'postgres'|'mssql',
+			user: 'demo',
+			password: 'demo',
+			host: 'localhost',
+			pool: { max: 5, min: 0, idle: 10000 },
+			storage : ':memory:',// Path.join( __dirname, 'data/db_test.sqlite' )
 			// , logging: console.log// false
-		}
-		, auth_enabled:true
+		},
+		auth_enabled:true,
 		// , sync:{ /*force:true */}
-		, model_owner:'User'
-		, model_owner_fk: 'owner_id'
-		, models: {
+		model_owner:'User',
+		model_owner_fk: 'owner_id',
+		models: {
 			User:{
 				sync:{ force:true },
 				roles : {
-					admin:1
-					, user:{
-						read:'owner'
-					}
+					admin:1,
+					user:{ read:'owner' }
 				},
 				mock:function( model ){
 					return model.bulkCreate([
-						{ login:'admin@domain.org'
-							, password: 'demo'
-							, roles: 'admin'
-						}
-						,{ login:'user1@domain.org'
-							, password: 'demo'
-							, roles: 'user'
-						}
-						,{ login:'user2@domain.org'
-							, password: 'demo'
-							, roles: 'user'
-						}
+						{ login:'admin@domain.org', password: 'demo', roles: 'admin' },
+						{ login:'user1@domain.org', password: 'demo', roles: 'user' },
+						{ login:'user2@domain.org', password: 'demo', roles: 'user' }
 					] )
-						.then(function( users ){
-							//__ store creds users by role for further tests
-							for(let i = 0, max = users.length; i < max; i++){
-								let user = users[i];
-								if(!creds[user.roles])  creds[user.roles] = {
-									id:user.id,
-									roles:user.roles
-								};
-								if(creds.admin && creds.user )  break;
-							}
-							return model;
-						})
-						;
+					.then(function( users ){
+						//__ store creds users by role for further tests
+						for(let i = 0, max = users.length; i < max; i++){
+							let user = users[i];
+							if(!creds[user.roles]){   creds[user.roles] = { id:user.id, roles:user.roles };}
+							if(creds.admin && creds.user )  break;
+						}
+						return model;
+					})
+					;
 				}
-			}
-			, Task:{
+			},
+			Task:{
 				sync:{ force:true },
 				// disabled:1,
-				roles:{
-					admin:1
-					, user:'owner'
-				}
-			}
-			, Project:{
+				roles:{ admin:1, user:'owner' }
+			},
+			Project:{
 				sync:{ force:true },
-				roles : {
-					admin:1
-					// , user:{ read:'owner'}//_ unhautorized
-				},
+				roles : {	admin:1 },
 				mock:function( model ){
 					return model.bulkCreate([
 						{ title:'Project 1', content: 'A great project content !' }
 					] )
-						;
+					;
 				}
 			}
-		}
-		, onModels : function( models, Sequelize, plugin ){
+		},
+		onModels : function( models, Sequelize, plugin ){
 			//__ good place for associations ( after all models loaded but before sync )
 			models.Task.hasMany( models.Task, { as: 'children', foreignKey: 'parent' } );
-			if( models.User ){
-				models.Task.belongsTo( models.User, {foreignKey: 'owner_id'} );
-				models.User.hasMany( models.Task, {foreignKey: 'owner_id', as:'tasks' } );
-			}
+			// if( models.User ){
+				// models.User.hasMany( models.Task, {foreignKey: 'owner_id', as:'tasks' } );
+			// }
 		}
 	});
 

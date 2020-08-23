@@ -51,12 +51,17 @@ function DbCrud( options ){
 
 
 	if( !me.options.db_sequelize ){   throw new Error('options.db_sequelize must be set.');}
-	// if( !me.options.db_sequelize.define )   throw new Error('options.db_sequelize must be a Sequelize instance, having a "define" method.');
-	me.database = new Sequelize( me.options.db_sequelize );
-
+	
 	me.auth_enabled = false;//__ before initialization, authorization control is disabled for intial mock operations
 
 	me.model_owner = null;
+
+	if( me.options.auth_enabled ){
+		if( !isString( this.options.model_owner ) || !this.options.model_owner.length ){
+			throw new Error('options.model_owner must be the key of the model for owners.');}
+	}
+	
+	me.database = new Sequelize( me.options.db_sequelize );
 
 	if( me.options.debug ){   console.log('...new DbCRUD', me.options );}
 }
@@ -87,20 +92,18 @@ Object.assign( DbCrud.prototype, {
 	setEnableAuth( enable ){
 		this.auth_enabled = enable;
 		if( this.auth_enabled ){
-			if(!isString(this.options.model_owner)||!this.options.model_owner.length){
-				throw new Error('options.model_owner must be the key of the model for owners.');}
 			this.model_owner = this.database.models[this.options.model_owner];
 			if(!this.model_owner){  throw new Error('No model for owners found with key "'+this.options.model_owner+'".');}
 		}
 	},
 	checkAuth( model_key, action, credentials ){
-		if( !credentials )      throw new Error('MissingCredentials.');
+		if( !credentials ){   throw new Error('MissingCredentials.');}
 		let user_roles = credentials[this.options.roles_property];
 		let err_msg = 'Unauthorized model action "'+model_key+':'+action+':'+user_roles+'"';
-		if(!user_roles) return Promise.reject( new Error( err_msg ) );
+		if( !user_roles ){    return Promise.reject( new Error( err_msg ) );}
 		//__ result query that can be merged on a model action options
 		let query_auth = this.getModelRoles( model_key, action, credentials );
-		if(!query_auth)  return Promise.reject( new Error( err_msg ) );
+		if(!query_auth){    return Promise.reject( new Error( err_msg ) );}
 
 		if( action !== 'create' && query_auth.owner ){
 			merge( query_auth, {
@@ -119,11 +122,11 @@ Object.assign( DbCrud.prototype, {
 		if(!this.options.models[model_key]){  return null;}
 		let model_roles = this.options.models[model_key].roles;
 		if(!model_roles){ return null;}
-		if( isObject( model_roles,'o' ) ){
+		if( isObject( model_roles ) ){
 			if(!credentials || !credentials[this.options.roles_property] ){   return null;}
 			model_roles = model_roles[credentials[this.options.roles_property]];
 			if(!model_roles){   return null;}
-			if( isObject( model_roles,'o' ) ){
+			if( isObject( model_roles ) ){
 				model_roles = model_roles[action];
 				if(!model_roles){   return null;}
 			}
@@ -156,7 +159,6 @@ Object.assign( DbCrud.prototype, {
 					if( auto_increment ){   delete record[model.primaryKeyField];}
 
 					if( auth_query ){
-
 						if( auth_query.check ){
 							const check = auth_query.check( record );
 							if( check ){
@@ -350,9 +352,8 @@ Object.assign( DbCrud.prototype, {
 		});
 	},
 	getModels(){    return this.database.models;},
-	importModels( models, options ){
+	importModels( models, options = {} ){
 		const me = this;
-		options = options || {};
 
 		return Promise.resolve()
 		.then(function( ){
@@ -366,10 +367,12 @@ Object.assign( DbCrud.prototype, {
 		.then(function( imports ){
 			if( me.options.debug ){   console.log('...models imported', imports );}
 
-			if( isFunction( me.options.onModels ) ){    me.options.onModels( imports, me.database, me );}
+			if( isFunction( me.options.onModels ) ){
+				me.options.onModels( imports, me.database, me );
+			}
 
 			return Promise.each( Object.keys( imports ), function( item, index ){
-				return afterImportModel( imports[item], models[item], me.options.debug );
+				return afterImportModel( imports[item], models[item], me.options, me.database );
 			});
 		})
 		;
@@ -383,7 +386,7 @@ Object.assign( DbCrud.prototype, {
 			return resolve( model );
 		})
 		.then(function( model ){
-			if( options ){    return afterImportModel( model, options, me.options.debug );}
+			if( options ){    return afterImportModel( model, options, me.options, me.database );}
 			return model;
 		})
 		;
@@ -391,23 +394,32 @@ Object.assign( DbCrud.prototype, {
 });
 
 
-function afterImportModel ( model, options, debug ){
-	options = options || {};
+function afterImportModel ( model, modelOptions = {}, options = {}, database ){
 
 	let pr = Promise.resolve( model );
+	
+	if( options.auth_enabled && modelOptions.roles ){
+		const model_owner = database.models[options.model_owner];
+		if( model !== model_owner ){
+			if(!model_owner){  throw new Error('No owner model found with key "'+options.model_owner+'".');}
+			const foreignKey = modelOptions.model_owner_fk || options.model_owner_fk;
+			if( options.debug ){  console.log('...model.auth relation', foreignKey );}
+			model.belongsTo( model_owner, { foreignKey } );
+		}
+	}
 
-	if( options.sync ){
-		let sync = merge( {}, options.sync );
+	if( modelOptions.sync ){
+		let sync = merge( {}, modelOptions.sync );
 		//_ insure force will work only on dbname_test and so prevent destroying prod db
 		sync.match = /_test$/;
-		if( debug ){    console.log('...model.sync', model.name, sync );}
+		if( options.debug ){    console.log('...model.sync', model.name, sync );}
 		pr = model.sync( sync );
 	}
 
-	if( isFunction( options.mock ) ){
-		if( debug ){    console.log('...model.mock', model.name );}
+	if( isFunction( modelOptions.mock ) ){
+		if( options.debug ){    console.log('...model.mock', model.name );}
 		pr = pr.then(function(){
-			return options.mock( model );
+			return modelOptions.mock( model );
 		});
 	}
 

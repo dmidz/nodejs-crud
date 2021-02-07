@@ -398,7 +398,7 @@ function afterImportModel ( model, modelOptions = {}, options = {}, database ){
 
 	let pr = Promise.resolve( model );
 	
-	if( options.auth_enabled && modelOptions.roles ){
+	if( options.model_owner && modelOptions.roles ){
 		const model_owner = database.models[options.model_owner];
 		if( model !== model_owner ){
 			if(!model_owner){  throw new Error('No owner model found with key "'+options.model_owner+'".');}

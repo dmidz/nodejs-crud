@@ -149,7 +149,7 @@ Object.assign( DbCrud.prototype, {
 			function( model, auth_query ){
 
 				let auto_increment = false;
-				if( model.attributes[model.primaryKeyField] ){    auto_increment = model.attributes[model.primaryKeyField].autoIncrement;}
+				if( model.rawAttributes[model.primaryKeyField] ){    auto_increment = model.rawAttributes[model.primaryKeyField].autoIncrement;}
 
 				let owner_id = auth_query ? options.credentials[me.model_owner.primaryKeyField] : null;
 
@@ -381,7 +381,8 @@ Object.assign( DbCrud.prototype, {
 		const me = this;
 		if(me.options.debug){   console.log('...import model', path );}
 		return new Promise(function( resolve, reject ){
-			let model = me.database.import( path );
+			let model = require( path )( me.database, Sequelize.DataTypes );
+			// let model = me.database.import( path );
 			if( !model ){   reject( new Error('NullImportedModel : check Class is returned in model file '+path+'.') );}
 			return resolve( model );
 		})

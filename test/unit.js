@@ -45,7 +45,7 @@ lab.experiment('//__ CRUD operations', function(){
 						{ login:'user2@domain.org', password: 'demo', roles: 'user' }
 					] )
 					.then(function( users ){
-						//__ store creds users by role for further tests
+						//__ store credentials users by role for further tests
 						for(let i = 0, max = users.length; i < max; i++){
 							let user = users[i];
 							if(!creds[user.roles]){   creds[user.roles] = { id:user.id, roles:user.roles };}
@@ -90,8 +90,8 @@ lab.experiment('//__ CRUD operations', function(){
 		return mod.getModel('Task', 'single' )
 		.then(function( model ) {
 			expect( model ).to.be.a.function();
-			expect( model.attributes ).to.be.an.object();
-			expect( model.attributes.title ).to.be.an.object();
+			expect( model.rawAttributes ).to.be.an.object();
+			expect( model.rawAttributes.title ).to.be.an.object();
 		})
 		;
 	});
@@ -130,7 +130,7 @@ lab.experiment('//__ CRUD operations', function(){
 	lab.test('Create records with right roles should success.', function( ){
 		const options = { credentials:creds.admin, bulk:1 };
 		return mod.create('Task', [
-			{ title: 'Task 1'/*, owner_id:1*/ },//_ if no owner set, creds.id will be used
+			{ title: 'Task 1'/*, owner_id:1*/ },//_ if no owner set, credentials.id will be used
 			{ title: 'Task 2', owner_id:2 }
 		], options )
 		.then(function( tasks ) {

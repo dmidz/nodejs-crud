@@ -1,6 +1,4 @@
 
-const Promise = require('bluebird');
-
 module.exports = function(sequelize, DataTypes) {
 
 	const models = sequelize.models;

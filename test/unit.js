@@ -3,7 +3,6 @@ const Lab = require('@hapi/lab'),
 	lab = exports.lab = Lab.script(),
 	{ expect } = require('@hapi/code'),
 	Path = require('path'),
-	Promise = require('bluebird'),
 	DbCrud = require('../src')
 ;
 
@@ -86,140 +85,108 @@ lab.experiment('//__ CRUD operations', function(){
 	});
 
 	//_________ tests
-	lab.test('getModel existent one with an existant scope should return the model.', function( ){
-		return mod.getModel('Task', 'single' )
-		.then(function( model ) {
-			expect( model ).to.be.a.function();
-			expect( model.rawAttributes ).to.be.an.object();
-			expect( model.rawAttributes.title ).to.be.an.object();
-		})
-		;
+	lab.test('getModel existent one with an existant scope should return the model.', async ( ) => {
+		const model = await mod.getModel('Task', 'single' );
+		expect( model ).to.be.a.function();
+		expect( model.rawAttributes ).to.be.an.object();
+		expect( model.rawAttributes.title ).to.be.an.object();
 	});
 
-	lab.test('getModel unknown one should throw an UnknownModel error.', function( ){
-		return mod.getModel('UnknowModel', 'single' )
-		.catch(function( err ) {
+	lab.test('getModel unknown one should throw an UnknownModel error.', async ( ) => {
+		try {
+			mod.getModel('UnknowModel', 'single' );
+		}catch( err ){
 			expect( err.message).to.match(/UnknownModel/i);
-		})
-		;
+		}
 	});
 
-	lab.test('getModel existent one with unknown scope should thow a SequelizeScopeError error.', function( ){
-		return mod.getModel('Task', 'unknow_scope' )
-		.catch(function( err ) {
+	lab.test('getModel existent one with unknown scope should thow a SequelizeScopeError error.', ( ) => {
+		try {
+			mod.getModel('Task', 'unknow_scope' );
+		}catch( err ){
 			expect( err.name ).to.match(/SequelizeScopeError/i);
-		})
-		;
+		}
 	});
 
-	lab.test('Create records with insufficient roles shoud throw Unhautorized.', function( ){
-		return mod.create('User', { login:'test@domain.org'
-			, password:'$2a$10$7g04N01EzmbfXS0QwXuuBuNa8ReUy9Ih2fhXn2ic0hRNWkTSXmS6C'// "demo"
-			, roles: 'user'
-		}, { credentials:creds.user, bulk:1 } )
-		.then(function( users ) {
+	lab.test('Create records with insufficient roles shoud throw Unhautorized.', async ( ) => {
+		try {
+			const users = await mod.create('User', { login:'test@domain.org'
+				, password:'$2a$10$7g04N01EzmbfXS0QwXuuBuNa8ReUy9Ih2fhXn2ic0hRNWkTSXmS6C'// "demo"
+				, roles: 'user'
+			}, { credentials:creds.user, bulk:1 } )
 			expect( users ).to.be.an.error();
-		})
-		.catch(function( err ) {
+		}catch( err ){
 			expect( err ).to.be.an.error();
 			expect( err.message).to.match(/Unauthorized/i);
-		})
-		;
+		}
 	});
 
-	lab.test('Create records with right roles should success.', function( ){
+	lab.test('Create records with right roles should success.', async ( ) => {
 		const options = { credentials:creds.admin, bulk:1 };
-		return mod.create('Task', [
-			{ title: 'Task 1'/*, owner_id:1*/ },//_ if no owner set, credentials.id will be used
-			{ title: 'Task 2', owner_id:2 }
-		], options )
-		.then(function( tasks ) {
-			// console.log('# res', tasks );
-			expect( tasks ).to.have.length( 2 );
-			//__ create 2 subtask each
-			return Promise.map( tasks, function( task ) {
-				return mod.create('Task', [
-					{ title: task.title+'.1', parent:task.id, owner_id:task.owner_id },
-					{ title: task.title+'.2', parent:task.id, owner_id:task.owner_id }
-				], options );
-			});
-		});
+		const tasks = await mod.create( 'Task', [
+			{ title: 'Task 1' },//_ if no owner set, credentials.id will be used
+			{ title: 'Task 2', owner_id: 2 }
+		], options );
+		expect( tasks ).to.have.length( 2 );
+		//__ create 2 subtask each
+		for( let task of tasks ){
+			await mod.create('Task', [
+				{ title: task.title+'.1', parent:task.id, owner_id:task.owner_id },
+				{ title: task.title+'.2', parent:task.id, owner_id:task.owner_id }
+			], options );
+		}
 	});
 
-	lab.test('Read records of model with options.index_by property should return an object keyed on.', function( ){
-		return mod.read('Task', { raw:true, credentials:creds.admin, scopes:'collection', index_by:'title' } )
-		.then(function( tasks ) {
-			// console.log('---- res ordered', tasks );
-			expect( tasks ).to.be.an.object();
-			expect( tasks['Task 1'] ).to.be.an.object();
-		})
-		;
+	lab.test('Read records of model with options.index_by property should return an object keyed on.', async ( ) => {
+		const tasks = await mod.read('Task', { raw:true, credentials:creds.admin, scopes:'collection', index_by:'title' } );
+		expect( tasks ).to.be.an.object();
+		expect( tasks['Task 1'] ).to.be.an.object();
 	});
 
-	lab.test('Read records of model with unhautorized user roles should throw Unhautorized.', function( ){
-		return mod.read('Project', { raw:true, credentials:creds.user, scopes:'collection' } )
-		.then(function( projects ) {
-			expect( projects ).to.be.an.error();
-		})
-		.catch(function( err ) {
+	lab.test('Read records of model with unhautorized user roles should throw Unhautorized.', async ( ) => {
+		try {
+			await mod.read('Project', { raw:true, credentials:creds.user, scopes:'collection' } )
+		}catch( err ){
 			expect( err ).to.be.an.error();
 			expect( err.message).to.match(/Unauthorized/i);
-		})
-		;
+		}
 	});
 
-	lab.test('Read records of model with roles "owner" should return only owned ones.', function( ){
-		return mod.read('Task', { raw:true, credentials:creds.user, scopes:'collection' } )
-		.then(function( res ) {
-			console.log('### res :', res );
-			expect( res ).to.have.length( 1 );
-		})
-		;
+	lab.test('Read records of model with roles "owner" should return only owned ones.', async ( ) => {
+		const tasks = await mod.read('Task', { raw:true, credentials:creds.user, scopes:'collection' } )
+		expect( tasks ).to.have.length( 1 );
 	});
 
-	lab.test('Update records of model with roles "owner" should udpate only owned ones.', function( ){
-		return mod.update('Task'
+	lab.test('Update records of model with roles "owner" should udpate only owned ones.', async ( ) => {
+		const tasks = await mod.update('Task'
 			, {3:{ title:'Task 1.1 modified bis' }
 				, 5:{ title:'Task 2.1 modified bis' } }
-			, { credentials:creds.user/*, scopes:'update'*/ } )
-		.then(function( res ) {
-			console.log('### res :', res );
-			expect( res[3].result ).to.equal(0);
-			expect( res[5].result ).to.equal(1);
-		})
-		;
+			, { credentials:creds.user } );
+
+		expect( tasks[3].result ).to.equal(0);
+		expect( tasks[5].result ).to.equal(1);
 	});
 
-	lab.test('Update records with empty record should throw an UndefinedProperties error.', function( ){
-		return mod.update('Task', {3:null }, { credentials:creds.user/*, scopes:'update'*/ }
-		)
-		.catch(function( res ) {
-			console.log('### res :', res );
+
+	lab.test('Update records with empty record should throw an UndefinedProperties error.', async ( ) => {
+		try {
+			await mod.update('Task', {3:null }, { credentials:creds.user });
+		} catch( err ){
 			expect( res ).to.be.an.error();
-		})
-		;
+		}
 	});
 
-	lab.test('Delete records of model with roles "owner" should delete only owned ones.', function( ){
-		return mod.delete('Task'
-			, { delete_keys:[ 4, 6 ], credentials:creds.user } )
-		.then(function( res ) {
-			console.log('### res :', res );
-			expect( res.del_count ).to.equal(1);
-		})
-		;
+	lab.test('Delete records of model with roles "owner" should delete only owned ones.', async ( ) => {
+		const res =  await mod.delete('Task', { delete_keys:[ 4, 6 ], credentials:creds.user } );
+		expect( res.del_count ).to.equal(1);
 	});
 
-	lab.test('Clone record of model should return the cloned new record with properties and onAfterClone called.', function( ){
-		const clone_props = { id:'bbb', title:'Task cloned'};
-		return mod.clone('Task', 2, { credentials:creds.user, properties:clone_props } )
-		.then(function( res ) {
-			console.log('### res :', res.get() );
-			expect( res ).to.be.an.object();
-			expect( res.title ).to.equal( clone_props.title );
-			expect( res.content ).to.equal( 'Content cloned task.' );
-		})
-		;
+	lab.test('Clone record of model should return the cloned new record with properties and onAfterClone called.', async ( ) => {
+		const clone_props = { id:'bbb', title:'Task cloned' };
+		const res = await mod.clone('Task', 2, { credentials:creds.user, properties:clone_props } )
+		expect( res ).to.be.an.object();
+		expect( res.title ).to.equal( clone_props.title );
+		expect( res.content ).to.equal( 'Content cloned task.' );
 	});
 });
 

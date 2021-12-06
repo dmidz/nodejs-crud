@@ -1,6 +1,6 @@
 {
   "name": "@dmidz/crud",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "author": "David MARTIN <david@dmidz.com>",
   "description": "Wrapper of Sequelize ORM with CRUD operations & authorization level access.",
   "main": "src/index.js",

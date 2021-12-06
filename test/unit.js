@@ -37,22 +37,21 @@ lab.experiment('//__ CRUD operations', function(){
 					admin:1,
 					user:{ read:'owner' }
 				},
-				mock:function( model ){
-					return model.bulkCreate([
+				mock: async ( model ) => {
+					const users = await model.bulkCreate([
 						{ login:'admin@domain.org', password: 'demo', roles: 'admin' },
 						{ login:'user1@domain.org', password: 'demo', roles: 'user' },
 						{ login:'user2@domain.org', password: 'demo', roles: 'user' }
-					] )
-					.then(function( users ){
-						//__ store credentials users by role for further tests
-						for(let i = 0, max = users.length; i < max; i++){
-							let user = users[i];
-							if(!creds[user.roles]){   creds[user.roles] = { id:user.id, roles:user.roles };}
-							if(creds.admin && creds.user )  break;
-						}
-						return model;
-					})
-					;
+					] );
+					
+					//__ store credentials users by role for further tests
+					for(let i = 0, max = users.length; i < max; i++){
+						let user = users[i];
+						if(!creds[user.roles]){   creds[user.roles] = { id:user.id, roles:user.roles };}
+						if(creds.admin && creds.user )  break;
+					}
+					
+					return model;
 				}
 			},
 			Task:{
@@ -63,11 +62,12 @@ lab.experiment('//__ CRUD operations', function(){
 			Project:{
 				sync:{ force:true },
 				roles : {	admin:1 },
-				mock:function( model ){
-					return model.bulkCreate([
+				mock: async ( model ) => {
+					await model.bulkCreate([
 						{ title:'Project 1', content: 'A great project content !' }
 					] )
 					;
+					return model;
 				}
 			}
 		},

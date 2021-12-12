@@ -91,14 +91,15 @@ Object.assign( DbCrud.prototype, {
 		this.auth_enabled = enable;
 		if( this.auth_enabled ){
 			this.model_owner = this.database.models[this.options.model_owner];
-			if(!this.model_owner){  throw new Error('No model for owners found with key "'+this.options.model_owner+'".');}
+			if(!this.model_owner){  throw new Error(`No model for owners found with key "${this.options.model_owner}".`);}
 		}
 	},
 	
 	checkAuth( model_key, action, credentials ){
+		if( !this.auth_enabled ){  return null;}
 		if( !credentials ){   throw new Error('MissingCredentials.');}
 		let user_roles = credentials[this.options.roles_property];
-		let err_msg = 'Unauthorized model action "'+model_key+':'+action+':'+user_roles+'"';
+		let err_msg = `Unauthorized model action "${model_key}:${action}:${user_roles}"`;
 		if( !user_roles ){    throw new Error( err_msg );}
 		//__ result query that can be merged on a model action options
 		let query_auth = this.getModelRoles( model_key, action, credentials );
@@ -144,10 +145,9 @@ Object.assign( DbCrud.prototype, {
 		const is_single = !( records instanceof Array );
 		if( is_single ){  records = [records];}
 		
-		const auth_query = this.auth_enabled ? this.checkAuth( model_key, 'create', options.credentials ) : null;
-
 		const model = await this.getModel( model_key, options.scopes );
-		
+		const auth_query = this.checkAuth( model_key, 'create', options.credentials );
+
 		let auto_increment = false;
 		if( model.rawAttributes[ model.primaryKeyField ] ){ auto_increment = model.rawAttributes[ model.primaryKeyField ].autoIncrement;}
 		
@@ -166,7 +166,7 @@ Object.assign( DbCrud.prototype, {
 				//__ if auth_query.owner or record owner not set : record owner will be set with credentials id
 				if( auth_query.owner || isNil( record[ this.options.model_owner_fk ] ) ){
 					if( isNil( owner_id ) ){
-						throw new Error( 'crendentials pk "' + this.model_owner.primaryKeyField + '" must be set in order to set records owner.' );
+						throw new Error( `crendentials pk "${this.model_owner.primaryKeyField}" must be set in order to set records owner.` );
 					}
 					record[ this.options.model_owner_fk ] = owner_id;
 				}
@@ -199,8 +199,9 @@ Object.assign( DbCrud.prototype, {
 		this.debug('......read', model_key, options );
 		options = options || {};
 		const is_single = !isNil( options.single_key );
-		const auth_query = this.auth_enabled ? this.checkAuth( model_key, 'read', options.credentials ) : null;
+
 		const model = this.getModel( model_key, options.scopes );
+		const auth_query = this.checkAuth( model_key, 'read', options.credentials );
 		
 		const opts = merge( { where: {} }, options );
 		if( is_single ){ opts.where[ model.primaryKeyField ] = options.single_key;}
@@ -218,8 +219,8 @@ Object.assign( DbCrud.prototype, {
 		this.debug('......update', model_key, options );
 		if( isNil( records ) ){  throw new Error('UndefinedProperties : 2nd arg records must be defined.');}
 
-		const auth_query = this.auth_enabled ? this.checkAuth( model_key, 'read', options.credentials ) : null;
 		const model = this.getModel( model_key, options.scopes );
+		const auth_query = this.checkAuth( model_key, 'read', options.credentials );
 		const pk = model.primaryKeyField;
 		
 		const res = {};
@@ -256,8 +257,8 @@ Object.assign( DbCrud.prototype, {
 		options = options || {};
 		this.debug('......delete', model_key, options );
 
-		const auth_query = this.auth_enabled ? this.checkAuth( model_key, 'read', options.credentials ) : null;
 		const model = this.getModel( model_key, options.scopes );
+		const auth_query = this.checkAuth( model_key, 'read', options.credentials );
 		
 		let keys = [];
 		const opts = merge( { where: {} }, options );
@@ -280,7 +281,7 @@ Object.assign( DbCrud.prototype, {
 		options.single_key = src_key;
 
 		const record_src = await this.read( model_key, options );
-		if( !record_src ){    throw new Error( 'CloneSrcNotFound : no record source found with the id "' + src_key + '"' );}
+		if( !record_src ){    throw new Error( `CloneSrcNotFound : no record source found with the id "${src_key}"` );}
 
 		const model = this.getModel( model_key )
 		
@@ -305,7 +306,7 @@ Object.assign( DbCrud.prototype, {
 
 	getModel( model_key, scopes ){
 		let model = this.database.models[ model_key ];
-		if(!model){   throw new Error('UnknownModel \''+model_key+'\'');}
+		if(!model){   throw new Error(`UnknownModel '${model_key}'`);}
 		if( typeof scopes !== 'undefined'){     model = model.scope( scopes );}
 		this.debug('...getModel', model_key, scopes/*, model._scope*/ );
 		return model;
@@ -352,7 +353,7 @@ async function afterImportModel ( model, modelOptions = {}, options = {}, databa
 	if( options.model_owner && modelOptions.roles ){
 		const model_owner = database.models[options.model_owner];
 		if( model !== model_owner ){
-			if(!model_owner){  throw new Error('No owner model found with key "'+options.model_owner+'".');}
+			if(!model_owner){  throw new Error(`No owner model found with key "${options.model_owner}".`);}
 			const foreignKey = modelOptions.model_owner_fk || options.model_owner_fk;
 			options.debug && console.log('...model.auth relation', foreignKey );
 			model.belongsTo( model_owner, { foreignKey } );

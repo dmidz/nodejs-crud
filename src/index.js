@@ -3,14 +3,14 @@ const Path = require( 'path' ),
 	isNil = require('lodash/isNil'),
 	isArray = require('lodash/isArray'),
 	isString = require('lodash/isString'),
-	isObject = require('lodash/isObject'),
+	isPlainObject = require('lodash/isPlainObject'),
 	isFunction = require('lodash/isFunction'),
-	mergeWith = require('lodash/mergeWith'),
 	keyBy = require('lodash/keyBy'),
-	replaceIfArray = ( to, from ) => (isArray( to ) ? from : undefined),
-	merge = ( ...args ) => mergeWith( ...args, replaceIfArray )
-	;
-
+	deepMerge = require('deepmerge'),
+	deepMergeOptions = { arrayMerge: (destinationArray, sourceArray, options) => sourceArray },
+	merge = ( target, source ) => {
+		return deepMerge( target, source, deepMergeOptions );
+	}
 
 function DbCrud( options ){
 
@@ -95,43 +95,41 @@ Object.assign( DbCrud.prototype, {
 		}
 	},
 	
-	checkAuth( model_key, action, credentials ){
-		if( !this.auth_enabled ){  return null;}
-		if( !credentials ){   throw new Error('MissingCredentials.');}
-		let user_roles = credentials[this.options.roles_property];
-		let err_msg = `Unauthorized model action "${model_key}:${action}:${user_roles}"`;
+	prepareQuery( model, action, options = {} ){
+		const query = merge({ where: {} }, options );
+		if( !this.auth_enabled ){  return query;}
+		
+		if( !options.credentials ){   throw new Error('MissingCredentials.');}
+		let user_roles = options.credentials[this.options.roles_property];
+		let err_msg = `Unauthorized model action "${model.name}:${action}:${user_roles}"`;
 		if( !user_roles ){    throw new Error( err_msg );}
 		//__ result query that can be merged on a model action options
-		let query_auth = this.getModelRoles( model_key, action, credentials );
-		if(!query_auth){    throw new Error( err_msg );}
+		let roles = this.getModelRoles( model, user_roles, action );
+		if( !roles ){    throw new Error( err_msg );}
 
-		if( action !== 'create' && query_auth.owner ){
-			merge( query_auth, {
-				where:{
-					[this.options.model_owner_fk] : credentials[this.model_owner.primaryKeyField]
-				}
-			});
+		if( roles.fields ){  query.fields = roles.fields;}
+		if( action !== 'create' && roles.owner ){
+			query.where[this.options.model_owner_fk] = options.credentials[this.model_owner.primaryKeyField];
 		}
 
-		this.debug('...checkAuth', model_key, action, credentials[this.options.roles_property], query_auth );
+		this.debug('...prepareQuery', { model, action, role: options.credentials[ this.options.roles_property ], query } );
 
-		return query_auth;
+		return query;
 	},
 	
-	getModelRoles( model_key, action, credentials ){
-		if(!this.options.models[model_key]){  return null;}
-		let model_roles = this.options.models[model_key].roles;
+	getModelRoles( model, role, action ){
+		if(!this.options.models[model.name]){  return null;}
+		let model_roles = this.options.models[model.name].roles;
 		if(!model_roles){ return null;}
-		if( isObject( model_roles ) ){
-			if(!credentials || !credentials[this.options.roles_property] ){   return null;}
-			model_roles = model_roles[credentials[this.options.roles_property]];
+		if( isPlainObject( model_roles ) ){
+			model_roles = model_roles[role];
 			if(!model_roles){   return null;}
-			if( isObject( model_roles ) ){
+			if( isPlainObject( model_roles ) ){
 				model_roles = model_roles[action];
 				if(!model_roles){   return null;}
 			}
 		}
-		if( isFunction( model_roles ) ){  model_roles = model_roles( credentials, this.database.models );}
+		if( isFunction( model_roles ) ){  model_roles = model_roles( role, this.database.models );}
 		if( isString( model_roles ) ){    model_roles = { [model_roles]:true };}
 
 		return model_roles;
@@ -146,25 +144,25 @@ Object.assign( DbCrud.prototype, {
 		if( is_single ){  records = [records];}
 		
 		const model = await this.getModel( model_key, options.scopes );
-		const auth_query = this.checkAuth( model_key, 'create', options.credentials );
+		const query = this.prepareQuery( model, 'create', options );
 
 		let auto_increment = false;
 		if( model.rawAttributes[ model.primaryKeyField ] ){ auto_increment = model.rawAttributes[ model.primaryKeyField ].autoIncrement;}
 		
-		const owner_id = auth_query ? options.credentials[ this.model_owner.primaryKeyField ] : null;
+		const owner_id = this.auth_enabled ? options.credentials[ this.model_owner.primaryKeyField ] : null;
 		
 		for( let i = 0, max = records.length; i < max; i++ ){
 			let record = records[ i ];
 			
 			if( auto_increment ){ delete record[ model.primaryKeyField ];}
 			
-			if( auth_query ){
-				if( auth_query.check ){
-					auth_query.check( record );
+			if( this.auth_enabled ){
+				if( query.check ){
+					query.check( record );
 				}
 				//__ create roles defines how can be set the owner of the records
 				//__ if auth_query.owner or record owner not set : record owner will be set with credentials id
-				if( auth_query.owner || isNil( record[ this.options.model_owner_fk ] ) ){
+				if( query.owner || isNil( record[ this.options.model_owner_fk ] ) ){
 					if( isNil( owner_id ) ){
 						throw new Error( `crendentials pk "${this.model_owner.primaryKeyField}" must be set in order to set records owner.` );
 					}
@@ -201,13 +199,11 @@ Object.assign( DbCrud.prototype, {
 		const is_single = !isNil( options.single_key );
 
 		const model = this.getModel( model_key, options.scopes );
-		const auth_query = this.checkAuth( model_key, 'read', options.credentials );
+		const query = this.prepareQuery( model, 'read', options );
 		
-		const opts = merge( { where: {} }, options );
-		if( is_single ){ opts.where[ model.primaryKeyField ] = options.single_key;}
-		if( auth_query ){ merge( opts, auth_query );}
-		
-		let res = await model[ is_single ? 'findOne' : 'findAll' ]( opts );
+		if( is_single ){ query.where[ model.primaryKeyField ] = options.single_key;}
+
+		let res = await model[ is_single ? 'findOne' : 'findAll' ]( query );
 		if( options.index_by && !is_single ){ res = keyBy( res, options.index_by );}
 		return res;
 
@@ -220,7 +216,7 @@ Object.assign( DbCrud.prototype, {
 		if( isNil( records ) ){  throw new Error('UndefinedProperties : 2nd arg records must be defined.');}
 
 		const model = this.getModel( model_key, options.scopes );
-		const auth_query = this.checkAuth( model_key, 'read', options.credentials );
+		const query = this.prepareQuery( model, 'update', options );
 		const pk = model.primaryKeyField;
 		
 		const res = {};
@@ -228,10 +224,8 @@ Object.assign( DbCrud.prototype, {
 		for( let key in records ){
 			let record = records[ key ];
 			if( isNil( record ) ){ res[ key ] = new Error( 'UndefinedProperties : record cannot be null or undefined.' );}
-			const opts = merge( { where: { [ pk ]: key } }, options );
-			if( auth_query ){ merge( opts, auth_query );}
-			opts.limit = 1;
-			this.debug( '......update record', record, opts );
+			let opts = merge( query, { where: { [ pk ]: key }, limit: 1 } );
+			this.debug( '......update record', { record, query, opts } );
 			
 			prs[ key ] = record;
 			if( isFunction( model.onBeforeUpdate ) ){
@@ -252,24 +246,23 @@ Object.assign( DbCrud.prototype, {
 		return res;
 				
 	},
+	
 	delete: async function( model_key, options ){
 		const me = this;
 		options = options || {};
 		this.debug('......delete', model_key, options );
 
 		const model = this.getModel( model_key, options.scopes );
-		const auth_query = this.checkAuth( model_key, 'read', options.credentials );
+		const query = this.prepareQuery( model, 'delete', options );
 		
 		let keys = [];
-		const opts = merge( { where: {} }, options );
 		if( !isNil( options.delete_keys ) ){
 			keys = options.delete_keys;
 			if( !isArray( keys ) ){ keys = [keys];}
 			const pk = model.primaryKeyField;
-			opts.where[ pk ] = { [ Sequelize.Op.in ]: keys };
+			query.where[ pk ] = { [ Sequelize.Op.in ]: keys };
 		}
-		if( auth_query ){ merge( opts, auth_query );}
-		const del_count = await model.destroy( opts )
+		const del_count = await model.destroy( query );
 
 		return { del_count };
 	},
@@ -292,7 +285,7 @@ Object.assign( DbCrud.prototype, {
 		delete record.updatedAt;
 		delete record.updated_at;
 		if( model.beforeClone ){ model.beforeClone( record, record_src, options, this );}
-		if( options.properties ){ merge( record, options.properties );}
+		if( options.properties ){ record = merge( record, options.properties );}
 		
 		const created = await this.create( model_key, record, { credentials: options.credentials } );
 		
@@ -301,14 +294,13 @@ Object.assign( DbCrud.prototype, {
 		}
 		
 		return created;
-
 	},
 
 	getModel( model_key, scopes ){
 		let model = this.database.models[ model_key ];
 		if(!model){   throw new Error(`UnknownModel '${model_key}'`);}
 		if( typeof scopes !== 'undefined'){     model = model.scope( scopes );}
-		this.debug('...getModel', model_key, scopes/*, model._scope*/ );
+		this.debug('...getModel', model_key, scopes );
 		return model;
 	},
 

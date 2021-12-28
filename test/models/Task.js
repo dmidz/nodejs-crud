@@ -19,14 +19,14 @@ module.exports = function(sequelize, DataTypes) {
 			},
 			single( ){//__ include subtasks as 'children'
 				return {
-					attributes:['id','title','parent'],
+					attributes:['id','title','content','parent'],
 					include:[
 						{ model:models.Task.scope('task_children'), as:'children'}
 					]
 				}
 			},
 			task_children:{
-				attributes:['id','user_id']
+				attributes:['id']
 			}
 		}
 	});

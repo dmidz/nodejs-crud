@@ -223,7 +223,10 @@ Object.assign( DbCrud.prototype, {
 		const prs = {};
 		for( let key in records ){
 			let record = records[ key ];
-			if( isNil( record ) ){ res[ key ] = new Error( 'UndefinedProperties : record cannot be null or undefined.' );}
+			if( isNil( record ) ){ 
+				res[ key ] = new Error( 'UndefinedProperties : record cannot be null or undefined.' );
+				continue;
+			}
 			let opts = merge( query, { where: { [ pk ]: key }, limit: 1 } );
 			this.debug( '......update record', { record, query, opts } );
 			
@@ -234,7 +237,7 @@ Object.assign( DbCrud.prototype, {
 			
 			try{
 				const updated = await model.update( record, opts );
-				res[ key ] = { result: updated[ 0 ] };
+				res[ key ] = updated[ 0 ];
 				if( isFunction( model.onAfterUpdate ) ){
 					model.onAfterUpdate( record, key, opts, res[ key ] );
 				}

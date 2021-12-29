@@ -177,8 +177,8 @@ lab.experiment( '//__ CRUD operations', function(){
 			5: { title: 'Task 2.1 modified', content: 'Content 2.1 modified' }
 		};
 		const updated = await mod.update( 'Task', updates, { credentials: creds.user } );
-		expect( updated[ 3 ].result ).to.equal( 0 );
-		expect( updated[ 5 ].result ).to.equal( 1 );
+		expect( updated[ 3 ] ).to.equal( 0 );
+		expect( updated[ 5 ] ).to.equal( 1 );
 		
 		let tasks = await mod.read( 'Task', { 
 			raw: true,

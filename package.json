@@ -13,7 +13,7 @@
     "url": "https://github.com/dmidz/nodejs-crud.git"
   },
   "scripts": {
-    "test": "lab test/unit.js -v -m 15000 -I '@@any-promise/REGISTRATION'",
+    "test": "lab test/unit.js -v -m 15000 -l",
     "preversion": "npm test",
     "release:patch": "npm version patch -m \"release version %s\"",
     "release:minor": "npm version minor -m \"release version %s\"",

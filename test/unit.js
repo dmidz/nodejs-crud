@@ -4,8 +4,7 @@ const Lab = require( '@hapi/lab' ),
 	Path = require( 'path' ),
 	DbCrud = require( '../src' ),
 	{ in: opIn } = require('sequelize').Op;
-	
-;
+
 
 Error.stackTraceLimit = 3;
 
@@ -23,11 +22,12 @@ lab.experiment( '//__ CRUD operations', function(){
 			password: 'demo',
 			host: 'localhost',
 			pool: { max: 5, min: 0, idle: 10000 },
-			storage: ':memory:',// Path.join( __dirname, 'data/db_test.sqlite' )
-			// logging: false,
+			// storage: ':memory:',
+			storage: Path.join( __dirname, 'data/db_test.sqlite' ),
+			logging: false,
 		},
 		auth_enabled: true,
-		// , sync:{ /*force:true */}
+		sync: {},// false
 		model_owner: 'User',
 		model_owner_fk: 'owner_id',
 		models: {
@@ -92,8 +92,12 @@ lab.experiment( '//__ CRUD operations', function(){
 		return mod.initialize();
 	} );
 	
+	lab.after( () => {
+		mod.database.close();
+	} );
+	
 	//_________ tests
-	lab.test( 'getModel existent one with an existant scope should return the model.', async () => {
+	lab.test( 'getModel existing one with an existing scope should return the model.', async () => {
 		const model = await mod.getModel( 'Task', 'single' );
 		expect( model ).to.be.a.function();
 		expect( model.rawAttributes ).to.be.an.object();
@@ -108,7 +112,7 @@ lab.experiment( '//__ CRUD operations', function(){
 		}
 	} );
 	
-	lab.test( 'getModel existent one with unknown scope should thow a SequelizeScopeError error.', () => {
+	lab.test( 'getModel existing one with unknown scope should throw a SequelizeScopeError.', () => {
 		try{
 			mod.getModel( 'Task', 'unknow_scope' );
 		}catch( err ){
@@ -116,7 +120,7 @@ lab.experiment( '//__ CRUD operations', function(){
 		}
 	} );
 	
-	lab.test( 'Create records with insufficient roles shoud throw Unhautorized.', async () => {
+	lab.test( 'Create records with insufficient roles should throw Unhautorized.', async () => {
 		try{
 			const users = await mod.create( 'User', {
 				login: 'test@domain.org',
@@ -189,8 +193,7 @@ lab.experiment( '//__ CRUD operations', function(){
 				id: { [opIn]: [3, 5] }
 			}
 		} );
-		// console.log('_____________________', tasks );
-		// //__ 'title' field should not been updated as is not part of roles update
+		//__ 'title' field should not been updated as is not part of roles update
 		expect( tasks[5].title ).not.to.equal( updates[5].title );
 		expect( tasks[5].content ).to.equal( updates[5].content );
 	} );

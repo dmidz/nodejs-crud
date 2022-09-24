@@ -72,9 +72,11 @@ Object.assign( DbCrud.prototype, {
 			let sync = merge( {}, this.options.sync );
 			
 			//_ insure force will work only on dbname_test and so prevent destroying prod db
-			if( sync.force && process.env.NODE_ENV === 'production'){   sync.match = /_test$/;}
-			this.debug('...database.sync');
-			await this.database.sync( sync );
+			if( sync.force && process.env.NODE_ENV === 'production'){
+				sync.match = /_test$/;
+			}
+			// this.debug('...database.sync', sync );
+			// await this.database.sync( sync );
 		}
 		
 		this.debug('...database initialized.');
@@ -96,8 +98,8 @@ Object.assign( DbCrud.prototype, {
 	},
 	
 	prepareQuery( model, action, options = {} ){
+		if( !this.auth_enabled ){ return query;}
 		const query = merge({ where: {} }, options );
-		if( !this.auth_enabled ){  return query;}
 		
 		if( !options.credentials ){   throw new Error('MissingCredentials.');}
 		let user_roles = options.credentials[this.options.roles_property];
@@ -251,7 +253,6 @@ Object.assign( DbCrud.prototype, {
 	},
 	
 	delete: async function( model_key, options ){
-		const me = this;
 		options = options || {};
 		this.debug('......delete', model_key, options );
 

@@ -98,8 +98,8 @@ Object.assign( DbCrud.prototype, {
 	},
 	
 	prepareQuery( model, action, options = {} ){
+		const query = merge( { where: {} }, options );
 		if( !this.auth_enabled ){ return query;}
-		const query = merge({ where: {} }, options );
 		
 		if( !options.credentials ){   throw new Error('MissingCredentials.');}
 		let user_roles = options.credentials[this.options.roles_property];

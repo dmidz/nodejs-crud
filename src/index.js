@@ -44,6 +44,7 @@ function DbCrud( options ){
 		auth_enabled : true,               //_ authorization control can be totally disabled
 		model_owner:'User',                //_ key of the model for owners
 		model_owner_fk: 'user_id',         //_ foreign key associated to owner model pk
+		model_owner_association: {},	     //_ see sequelize belongsTo options
 		roles_property: 'roles',           //_ roles property on credentials
 	}, options );
 
@@ -53,6 +54,10 @@ function DbCrud( options ){
 	this.auth_enabled = false;//__ before initialization, authorization control is disabled for initial mock operations
 
 	this.model_owner = null;
+	
+	this.owner_assoc = {}
+	
+	this.targetKey = null;
 
 	if( this.options.auth_enabled ){
 		if( !isString( this.options.model_owner ) || !this.options.model_owner.length ){
@@ -81,9 +86,6 @@ Object.assign( DbCrud.prototype, {
 		
 		this.debug('...database initialized.');
 		
-		//__ apply authorization control then
-		this.setEnableAuth( this.options.auth_enabled );
-
 		return models;
 	},
 	
@@ -94,6 +96,11 @@ Object.assign( DbCrud.prototype, {
 		if( this.auth_enabled ){
 			this.model_owner = this.database.models[this.options.model_owner];
 			if(!this.model_owner){  throw new Error(`No model for owners found with key "${this.options.model_owner}".`);}
+			this.owner_assoc = {
+				foreignKey: this.options.model_owner_fk,
+				...this.options.model_owner_association,
+			}
+			this.targetKey = this.owner_assoc.targetKey || this.owner_assoc.foreignKey || this.model_owner.primaryKeyField;
 		}
 	},
 	
@@ -111,7 +118,7 @@ Object.assign( DbCrud.prototype, {
 
 		if( roles.fields ){  query.fields = roles.fields;}
 		if( action !== 'create' && roles.owner ){
-			query.where[this.options.model_owner_fk] = options.credentials[this.model_owner.primaryKeyField];
+			query.where[this.owner_assoc.foreignKey] = options.credentials[ this.targetKey ];
 		}
 
 		this.debug('...prepareQuery', { model, action, role: options.credentials[ this.options.roles_property ], query } );
@@ -151,7 +158,7 @@ Object.assign( DbCrud.prototype, {
 		let auto_increment = false;
 		if( model.rawAttributes[ model.primaryKeyField ] ){ auto_increment = model.rawAttributes[ model.primaryKeyField ].autoIncrement;}
 		
-		const owner_id = this.auth_enabled ? options.credentials[ this.model_owner.primaryKeyField ] : null;
+		const owner_id = this.auth_enabled ? options.credentials[ this.targetKey ] : null;
 		
 		for( let i = 0, max = records.length; i < max; i++ ){
 			let record = records[ i ];
@@ -164,11 +171,11 @@ Object.assign( DbCrud.prototype, {
 				}
 				//__ create roles defines how can be set the owner of the records
 				//__ if auth_query.owner or record owner not set : record owner will be set with credentials id
-				if( query.owner || isNil( record[ this.options.model_owner_fk ] ) ){
+				if( query.owner || isNil( record[ this.owner_assoc.foreignKey ] ) ){
 					if( isNil( owner_id ) ){
 						throw new Error( `crendentials pk "${this.model_owner.primaryKeyField}" must be set in order to set records owner.` );
 					}
-					record[ this.options.model_owner_fk ] = owner_id;
+					record[ this.owner_assoc.foreignKey ] = owner_id;
 				}
 			}
 		}
@@ -320,8 +327,11 @@ Object.assign( DbCrud.prototype, {
 		if( typeof this.options.onModels === 'function' ){
 			this.options.onModels( imports, this.database, this );
 		}
+		//__ apply authorization control then
+		this.setEnableAuth( this.options.auth_enabled );
+
 		for( let key in imports ){
-			await afterImportModel( imports[ key ], models[ key ], this.options, this.database );
+			await afterImportModel( imports[ key ], models[ key ], this.options, this.database, this );
 		}
 		return imports;
 	},
@@ -331,7 +341,7 @@ Object.assign( DbCrud.prototype, {
 		try {
 			let model = require( path )( this.database, Sequelize.DataTypes );
 			// if( !model ){   reject( new Error('NullImportedModel : check Class is returned in model file '+path+'.') );}
-			if( options ){    return afterImportModel( model, options, this.options, this.database );}
+			if( options ){    return afterImportModel( model, options, this.options, this.database/*, this*/ );}
 			return model;
 		}catch( err ){
 			throw err;
@@ -344,15 +354,15 @@ Object.assign( DbCrud.prototype, {
 	},
 });
 
-async function afterImportModel ( model, modelOptions = {}, options = {}, database ){
+async function afterImportModel ( model, modelOptions = {}, options = {}, database, mod ){
 	
 	if( options.model_owner && modelOptions.roles ){
 		const model_owner = database.models[options.model_owner];
 		if( model !== model_owner ){
 			if(!model_owner){  throw new Error(`No owner model found with key "${options.model_owner}".`);}
-			const foreignKey = modelOptions.model_owner_fk || options.model_owner_fk;
-			options.debug && console.log('...model.auth relation', foreignKey );
-			model.belongsTo( model_owner, { foreignKey } );
+			// console.log('_______________ mod', mod );
+			options.debug && console.log('...model.auth relation', model, mod.owner_assoc );
+			model.belongsTo( model_owner, { ...mod.owner_assoc } );
 		}
 	}
 

@@ -29,7 +29,11 @@ lab.experiment( '//__ CRUD operations', function(){
 		auth_enabled: true,
 		sync: {},// false
 		model_owner: 'User',
-		model_owner_fk: 'owner_id',
+		// model_owner_fk: 'owner_id',
+		model_owner_association: {
+			foreignKey: 'owner_id',
+			targetKey: 'id',
+		},
 		models: {
 			User: {
 				sync: { force: true },
@@ -103,7 +107,7 @@ lab.experiment( '//__ CRUD operations', function(){
 		expect( model.rawAttributes ).to.be.an.object();
 		expect( model.rawAttributes.title ).to.be.an.object();
 	} );
-	
+
 	lab.test( 'getModel unknown one should throw an UnknownModel error.', async () => {
 		try{
 			mod.getModel( 'UnknowModel', 'single' );

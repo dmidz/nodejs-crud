@@ -58,6 +58,8 @@ function DbCrud( options ){
 	this.owner_assoc = {}
 	
 	this.targetKey = null;
+	
+	this.modelOptions = {};
 
 	if( this.options.auth_enabled ){
 		if( !isString( this.options.model_owner ) || !this.options.model_owner.length ){
@@ -107,7 +109,6 @@ Object.assign( DbCrud.prototype, {
 	prepareQuery( model, action, options = {} ){
 		const query = merge( { where: {} }, options );
 		if( !this.auth_enabled ){ return query;}
-		
 		if( !options.credentials ){   throw new Error('MissingCredentials.');}
 		let user_roles = options.credentials[this.options.roles_property];
 		let err_msg = `Unauthorized model action "${model.name}:${action}:${user_roles}"`;
@@ -127,8 +128,8 @@ Object.assign( DbCrud.prototype, {
 	},
 	
 	getModelRoles( model, role, action ){
-		if(!this.options.models[model.name]){  return null;}
-		let model_roles = this.options.models[model.name].roles;
+		if(!this.modelOptions[model.name]){  return null;}
+		let model_roles = this.modelOptions[model.name].roles;
 		if(!model_roles){ return null;}
 		if( isPlainObject( model_roles ) ){
 			model_roles = model_roles[role];
@@ -321,7 +322,7 @@ Object.assign( DbCrud.prototype, {
 		const imports = {};
 		for( let key in models ){
 			if( models[ key ].disabled ){ continue;}
-			imports[ key ] = this.importModel( Path.join( options.dir_models || __dirname, key ) );
+			imports[ key ] = this.importModel( key, models[key], true );
 		}
 		this.debug( '...models imported', imports );
 		if( typeof this.options.onModels === 'function' ){
@@ -336,12 +337,13 @@ Object.assign( DbCrud.prototype, {
 		return imports;
 	},
 
-	importModel( path, options ){
-		this.debug( '...import model', path );
+	importModel( name, modelOptions, noRunAfter = false ){
+		this.debug( '...import model', { name, modelOptions, noRunAfter } );
 		try {
-			let model = require( path )( this.database, Sequelize.DataTypes );
+			let model = require( Path.join( this.options.dir_models || __dirname, name ) )( this.database, Sequelize.DataTypes );
+			this.modelOptions[name] = modelOptions;
 			// if( !model ){   reject( new Error('NullImportedModel : check Class is returned in model file '+path+'.') );}
-			if( options ){    return afterImportModel( model, options, this.options, this.database/*, this*/ );}
+			if( !noRunAfter ){    return afterImportModel( model, modelOptions, this.options, this.database, this );}
 			return model;
 		}catch( err ){
 			throw err;
@@ -360,7 +362,6 @@ async function afterImportModel ( model, modelOptions = {}, options = {}, databa
 		const model_owner = database.models[options.model_owner];
 		if( model !== model_owner ){
 			if(!model_owner){  throw new Error(`No owner model found with key "${options.model_owner}".`);}
-			// console.log('_______________ mod', mod );
 			options.debug && console.log('...model.auth relation', model, mod.owner_assoc );
 			model.belongsTo( model_owner, { ...mod.owner_assoc } );
 		}
